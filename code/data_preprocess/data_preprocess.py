@@ -22,31 +22,43 @@ subject_dirs = [os.path.join(data_dir, d) for d in os.listdir(data_dir) if os.pa
 print("数据路径：", subject_dirs)
 raise RuntimeError("请检查数据路径是否正确！")
 
-# 假设胰腺的标签是2，遍历所有subject并处理数据
+# 设置胰腺的标签值
+pancreas_label_value = 6
+
 for subject_dir in subject_dirs:
     subject_id = os.path.basename(subject_dir)
-    
-    # 加载图像和标签
-    image_path = os.path.join(subject_dir, 'image.nii.gz')
-    label_path = os.path.join(subject_dir, 'label.nii.gz')
-    
-    # 读取图像和标签
-    image = nib.load(image_path)
-    label = nib.load(label_path)
-    
-    # 提取胰腺的标签（假设胰腺标签为2）
-    label_data = label.get_fdata()
-    pancreas_label = np.where(label_data == 2, 1, 0)  # 将标签2的胰腺提取出来并二值化
 
-    # 保存图像到imagesTr
+    # 路径
+    combined_label_path = os.path.join(subject_dir, 'combined_labels.nii.gz')
+    pancreas_label_path = os.path.join(subject_dir, 'segmentations', 'pancreas.nii.gz')
+    
+    if not os.path.exists(combined_label_path) or not os.path.exists(pancreas_label_path):
+        print(f"Warning: Missing image or pancreas label for subject {subject_id}. Skipping.")
+        continue
+
+    # 加载图像和标签
+    image = nib.load(combined_label_path)
+    
+    # 加载 pancreas.nii.gz 文件中的二值化胰腺标签
+    pancreas_label = nib.load(pancreas_label_path)
+    binary_pancreas_label = pancreas_label.get_fdata()
+
+    # 提取 combined_labels 中胰腺的标签 (标签值为 6)
+    combined_label_data = image.get_fdata()
+    pancreas_from_combined = np.where(combined_label_data == pancreas_label_value, 1, 0).astype(np.uint8)
+
+    # 比较二者：使用 binary_pancreas_label 作为最终的二值标签
+    # 保存图像到 imagesTr
     new_image_filename = f'{subject_id}_0000.nii.gz'  # 确保命名符合 nnU-Net 格式
     new_image_path = os.path.join(images_tr_dir, new_image_filename)
     nib.save(image, new_image_path)
 
-    # 保存处理后的胰腺标签到labelsTr
+    # 保存处理后的胰腺标签到 labelsTr
     new_label_filename = f'{subject_id}.nii.gz'  # 标签文件不用模态编号
     new_label_path = os.path.join(labels_tr_dir, new_label_filename)
-    new_label_img = nib.Nifti1Image(pancreas_label.astype(np.uint8), label.affine)
+    new_label_img = nib.Nifti1Image(binary_pancreas_label, pancreas_label.affine)
     nib.save(new_label_img, new_label_path)
+
+    print(f"Processed subject {subject_id}")
 
 print("数据处理完成，已保存到:", output_dir)
