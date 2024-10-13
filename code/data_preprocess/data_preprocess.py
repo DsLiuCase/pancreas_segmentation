@@ -2,18 +2,29 @@ import os
 import nibabel as nib
 import shutil
 import random
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ThreadPoolExecutor
 
 # 原始数据路径
 data_dir = '/mnt/pan/courses/sxl1912_csds463/dxl952/AbdomenAtlas/uncompressed/'
 output_dir = '/mnt/pan/courses/sxl1912_csds463/dxl952/AbdomenAtlas/P1/nnUNet_raw_data_base/nnUNet_raw_data/Task_PancreasSegmentation/'
-# 创建必要的目录
+
+# 创建和清理目录的函数
+def create_clean_dir(directory):
+    if os.path.exists(directory):
+        print(f"Deleting existing directory: {directory}")
+        shutil.rmtree(directory)
+    os.makedirs(directory, exist_ok=True)
+
+# 创建或清理必要的目录
 images_tr_dir = os.path.join(output_dir, 'imagesTr')
 labels_tr_dir = os.path.join(output_dir, 'labelsTr')
-images_ts_dir = os.path.join(output_dir, 'imagesTs')  # 新增测试集文件夹
-os.makedirs(images_tr_dir, exist_ok=True)
-os.makedirs(labels_tr_dir, exist_ok=True)
-os.makedirs(images_ts_dir, exist_ok=True)
+images_ts_dir = os.path.join(output_dir, 'imagesTs')  # 测试集图像文件夹
+labels_ts_dir = os.path.join(output_dir, 'labelsTs')  # 测试集标签文件夹
+
+create_clean_dir(images_tr_dir)
+create_clean_dir(labels_tr_dir)
+create_clean_dir(images_ts_dir)
+create_clean_dir(labels_ts_dir)
 
 # 获取所有 subject 文件夹
 subject_dirs = [os.path.join(data_dir, d) for d in os.listdir(data_dir) if os.path.isdir(os.path.join(data_dir, d))]
@@ -61,12 +72,13 @@ def process_train_subject(subject_dir):
 
     print(f"Processed training subject {subject_id}")
 
-# 定义处理测试集的函数（只需保存图像，不需要标签）
+# 定义处理测试集的函数（保存图像和标签）
 def process_test_subject(subject_dir):
     subject_id = os.path.basename(subject_dir)
 
     # 路径
     ct_image_path = os.path.join(subject_dir, 'ct.nii.gz')
+    pancreas_label_path = os.path.join(subject_dir, 'segmentations', 'pancreas.nii.gz')
 
     # 加载CT图像
     ct_image = nib.load(ct_image_path)
@@ -76,14 +88,22 @@ def process_test_subject(subject_dir):
     new_image_path = os.path.join(images_ts_dir, new_image_filename)
     nib.save(ct_image, new_image_path)
 
+    # 保存胰腺标签到 labelsTs
+    pancreas_label = nib.load(pancreas_label_path)
+    binary_pancreas_label = pancreas_label.get_fdata()
+    new_label_filename = f'{subject_id}.nii.gz'  # 标签文件不用模态编号
+    new_label_path = os.path.join(labels_ts_dir, new_label_filename)
+    new_label_img = nib.Nifti1Image(binary_pancreas_label, pancreas_label.affine)
+    nib.save(new_label_img, new_label_path)
+
     print(f"Processed testing subject {subject_id}")
 
-# 使用 ProcessPoolExecutor 进行并行处理训练集
-with ProcessPoolExecutor(max_workers=8) as executor:  # 你可以调整 max_workers 的值来控制并行任务数
+# 使用 ThreadPoolExecutor 进行并行处理训练集
+with ThreadPoolExecutor(max_workers=40) as executor:  # 使用40个线程
     executor.map(process_train_subject, train_subjects)
 
-# 使用 ProcessPoolExecutor 进行并行处理测试集
-with ProcessPoolExecutor(max_workers=8) as executor:
+# 使用 ThreadPoolExecutor 进行并行处理测试集
+with ThreadPoolExecutor(max_workers=40) as executor:  # 使用40个线程
     executor.map(process_test_subject, test_subjects)
 
 print("数据处理完成，已保存到:", output_dir)
