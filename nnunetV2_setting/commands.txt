@@ -5,7 +5,9 @@ export nnUNet_n_proc_save=10  # Use 10 CPU cores for saving NIfTI files
 
 nnUNetv2_plan_and_preprocess -d 001 -c 3d_fullres -np 40 #--verbose
 
-nnUNetv2_train 001 3d_fullres 4 -num_gpus 4 #4 folder
+CUDA_VISIBLE_DEVICES=0,1 nnUNetv2_train 001 3d_fullres 4 -num_gpus 2 #4 folder
+CUDA_VISIBLE_DEVICES=0,1,2,3 nnUNetv2_train 001 3d_fullres 4 -num_gpus 2
+
 
 # testing Image: /mnt/pan/courses/sxl1912_csds463/dxl952/AbdomenAtlas/P1/nnUNet_raw_data_base/nnUNet_raw_data/Dataset001_PancreasSegmentation/imagesTs
 # testing Label: /mnt/pan/courses/sxl1912_csds463/dxl952/AbdomenAtlas/P1/nnUNet_raw_data_base/nnUNet_raw_data/Dataset001_PancreasSegmentation/labelsTs
@@ -20,3 +22,7 @@ nnUNetv2_predict \
   -c 3d_fullres \
   -p nnUNetPlans \
   -d 001
+
+
+# evaluation
+nnUNetv2_evaluate_folder /mnt/pan/courses/sxl1912_csds463/dxl952/AbdomenAtlas/P1/nnUNet_raw_data_base/nnUNet_raw_data/Dataset001_PancreasSegmentation/labelsTs_standard/  /mnt/pan/courses/sxl1912_csds463/dxl952/AbdomenAtlas/P1/nnUNet_raw_data_base/nnUNet_raw_data/Dataset001_PancreasSegmentation/testing_prediction/ -pfile /mnt/pan/courses/sxl1912_csds463/dxl952/AbdomenAtlas/P1/nnUNet_raw_data_base/nnUNet_raw_data/Dataset001_PancreasSegmentation/testing_prediction/plans.json -djfile /mnt/pan/courses/sxl1912_csds463/dxl952/AbdomenAtlas/P1/nnUNet_raw_data_base/nnUNet_raw_data/Dataset001_PancreasSegmentation/testing_prediction/dataset.json
